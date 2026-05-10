@@ -1,0 +1,9 @@
+chroma_store/
+uploads/
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.pdf
+venv/
+.venv/

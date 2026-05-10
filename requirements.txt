@@ -1,0 +1,8 @@
+flask
+langchain
+langchain-community
+chromadb
+sentence-transformers
+pypdf
+ollama
+werkzeug
