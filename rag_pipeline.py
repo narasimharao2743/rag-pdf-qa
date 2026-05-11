@@ -4,7 +4,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.llms import Ollama
-from langchain.chains import RetrievalQA
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 
 CHROMA_DIR = "./chroma_store"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
@@ -33,14 +35,26 @@ def load_existing_store() -> Chroma:
 def query(question: str, vectorstore: Chroma) -> dict:
     llm = Ollama(model=OLLAMA_MODEL)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-    chain = RetrievalQA.from_chain_type(
-        llm=llm, retriever=retriever, return_source_documents=True
+
+    prompt = PromptTemplate.from_template(
+        "Use the following context to answer the question.\n\nContext: {context}\n\nQuestion: {question}\n\nAnswer:"
     )
-    result = chain({"query": question})
-    sources = [
-        doc.metadata.get("source", "unknown") for doc in result["source_documents"]
-    ]
+
+    def format_docs(docs):
+        return "\n\n".join(doc.page_content for doc in docs)
+
+    chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    retrieved_docs = retriever.invoke(question)
+    answer = chain.invoke(question)
+    sources = [doc.metadata.get("source", "unknown") for doc in retrieved_docs]
+
     return {
-        "answer": result["result"],
+        "answer": answer,
         "sources": list(set(sources)),
     }
