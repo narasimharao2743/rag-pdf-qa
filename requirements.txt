@@ -1,8 +1,8 @@
 flask
 langchain
 langchain-community
+langchain-groq
 chromadb
 sentence-transformers
 pypdf
-ollama
 werkzeug

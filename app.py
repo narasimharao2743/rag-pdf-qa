@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from rag_pipeline import load_and_index, load_existing_store, query

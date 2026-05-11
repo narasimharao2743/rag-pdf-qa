@@ -3,14 +3,14 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_community.llms import Ollama
+from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
 CHROMA_DIR = "./chroma_store"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-OLLAMA_MODEL = "llama3.2:1b"
+GROQ_MODEL = "llama3-8b-8192"
 
 
 def load_and_index(pdf_path: str) -> Chroma:
@@ -33,7 +33,7 @@ def load_existing_store() -> Chroma:
 
 
 def query(question: str, vectorstore: Chroma) -> dict:
-    llm = Ollama(model=OLLAMA_MODEL)
+    llm = ChatGroq(model=GROQ_MODEL, api_key=os.getenv("GROQ_API_KEY"))
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
     prompt = PromptTemplate.from_template(
