@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from rag_pipeline import load_and_index, load_existing_store, query
 
@@ -7,6 +7,11 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = "./uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
 
 
 @app.route("/health", methods=["GET"])

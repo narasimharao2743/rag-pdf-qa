@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RAG PDF Q&A</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 30px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      color: #1a1a2e;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 24px;
+      width: 100%;
+      max-width: 700px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      color: #555;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .upload-area {
+      border: 2px dashed #c0c8d8;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      color: #888;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .upload-area:hover { border-color: #4a90e2; }
+
+    .upload-area input { display: none; }
+
+    .upload-area label {
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    #file-name {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: #4a90e2;
+    }
+
+    .btn {
+      margin-top: 12px;
+      padding: 10px 22px;
+      background: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background: #357abd; }
+    .btn:disabled { background: #aac5e8; cursor: not-allowed; }
+
+    #upload-status {
+      margin-top: 10px;
+      font-size: 0.88rem;
+      color: #27ae60;
+    }
+
+    #upload-status.error { color: #e74c3c; }
+
+    /* Chat */
+    #chat-box {
+      height: 340px;
+      overflow-y: auto;
+      border: 1px solid #e8eaf0;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+      background: #f8f9fb;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .message.user {
+      background: #4a90e2;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 3px;
+    }
+
+    .message.bot {
+      background: white;
+      color: #333;
+      align-self: flex-start;
+      border: 1px solid #e0e4ec;
+      border-bottom-left-radius: 3px;
+    }
+
+    .message.thinking {
+      background: white;
+      color: #aaa;
+      align-self: flex-start;
+      border: 1px solid #e0e4ec;
+      font-style: italic;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    #question {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #d0d6e0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #question:focus { border-color: #4a90e2; }
+
+    #empty-state {
+      text-align: center;
+      color: #bbb;
+      font-size: 0.9rem;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>RAG PDF Q&A</h1>
+
+  <!-- Upload Card -->
+  <div class="card">
+    <h2>Upload PDF</h2>
+    <div class="upload-area">
+      <input type="file" id="pdf-input" accept=".pdf" />
+      <label for="pdf-input">Click to select a PDF file</label>
+      <div id="file-name"></div>
+    </div>
+    <button class="btn" id="upload-btn" disabled>Upload & Index</button>
+    <div id="upload-status"></div>
+  </div>
+
+  <!-- Chat Card -->
+  <div class="card">
+    <h2>Ask a Question</h2>
+    <div id="chat-box">
+      <div id="empty-state">Upload a PDF to start asking questions</div>
+    </div>
+    <div class="input-row">
+      <input type="text" id="question" placeholder="Type your question..." disabled />
+      <button class="btn" id="ask-btn" disabled>Send</button>
+    </div>
+  </div>
+
+<script>
+  const pdfInput = document.getElementById('pdf-input');
+  const fileName = document.getElementById('file-name');
+  const uploadBtn = document.getElementById('upload-btn');
+  const uploadStatus = document.getElementById('upload-status');
+  const chatBox = document.getElementById('chat-box');
+  const questionInput = document.getElementById('question');
+  const askBtn = document.getElementById('ask-btn');
+  const emptyState = document.getElementById('empty-state');
+
+  pdfInput.addEventListener('change', () => {
+    if (pdfInput.files.length > 0) {
+      fileName.textContent = pdfInput.files[0].name;
+      uploadBtn.disabled = false;
+    }
+  });
+
+  uploadBtn.addEventListener('click', async () => {
+    const file = pdfInput.files[0];
+    if (!file) return;
+
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Indexing...';
+    uploadStatus.textContent = '';
+    uploadStatus.className = '';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (res.ok) {
+        uploadStatus.textContent = '✓ ' + data.message;
+        uploadStatus.className = '';
+        questionInput.disabled = false;
+        askBtn.disabled = false;
+        emptyState.style.display = 'none';
+      } else {
+        uploadStatus.textContent = '✗ ' + (data.error || 'Upload failed');
+        uploadStatus.className = 'error';
+        uploadBtn.disabled = false;
+      }
+    } catch {
+      uploadStatus.textContent = '✗ Server error';
+      uploadStatus.className = 'error';
+      uploadBtn.disabled = false;
+    }
+
+    uploadBtn.textContent = 'Upload & Index';
+  });
+
+  function addMessage(text, type) {
+    const div = document.createElement('div');
+    div.className = 'message ' + type;
+    div.textContent = text;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+    return div;
+  }
+
+  async function sendQuestion() {
+    const q = questionInput.value.trim();
+    if (!q) return;
+
+    questionInput.value = '';
+    askBtn.disabled = true;
+    questionInput.disabled = true;
+
+    addMessage(q, 'user');
+    const thinking = addMessage('Thinking...', 'thinking');
+
+    try {
+      const res = await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q })
+      });
+      const data = await res.json();
+      thinking.remove();
+
+      if (res.ok) {
+        addMessage(data.answer, 'bot');
+      } else {
+        addMessage('Error: ' + (data.error || 'Something went wrong'), 'bot');
+      }
+    } catch {
+      thinking.remove();
+      addMessage('Error: Could not reach server', 'bot');
+    }
+
+    askBtn.disabled = false;
+    questionInput.disabled = false;
+    questionInput.focus();
+  }
+
+  askBtn.addEventListener('click', sendQuestion);
+  questionInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendQuestion();
+  });
+</script>
+</body>
+</html>
