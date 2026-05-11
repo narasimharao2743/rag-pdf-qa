@@ -10,7 +10,7 @@ from langchain_core.runnables import RunnablePassthrough
 
 CHROMA_DIR = "./chroma_store"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-GROQ_MODEL = "llama3-8b-8192"
+GROQ_MODEL = "llama-3.1-8b-instant"
 
 
 def load_and_index(pdf_path: str) -> Chroma:
